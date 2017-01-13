@@ -23,20 +23,32 @@ class Welcome extends CI_Controller {
 	function __construct()
 	{
 		parent::__construct();
-		$this->load->model('test');
+		//$this->load->model('test');
+		$this->load->model('Item');
+		$this->load->model('payment_details');
 	}
 
-	public function index()
+	/*public function index()
 	{
 		$this->load->view('welcome_message');
 
 		$test = new test();
 		$test = $test->get_one('2');
 		var_dump($test);
-	}
+	}*/
 
 	public function add()
 	{
 		$this->load->view('welcome_message');
+	}
+
+	public function Items(){
+		$item = new Item();
+		$payment = new payment_details();
+
+		$x = $payment->get_count('383068');
+		//$x = $item->get_all();
+		echo json_encode($x);
+
 	}
 }

@@ -146,4 +146,148 @@ class Tokenization extends CI_Model
         }
         return $token;
     }
+
+    public static function getAttemptCount($booking_id){
+        $payment_details = new payment_details();
+        $count = $payment_details->get_count($booking_id);
+        return $count;
+    }
+     public function getNumberOfPasengers($tk_key) {
+
+         $item = new Item();
+        $npz = $item->get_no_of_pax($tk_key);
+        return $npz;
+    }
+
+    
+    public  function flightItemTracker($travel) {
+        $productName = '';
+        for ($k = 0; $k < sizeof($travel); $k++) {
+            if (isset($travel[$k]->fromtext)) {
+                $from = $travel[$k]->fromtext;
+            } else {
+                $from = "Not set";
+            }
+            if (isset($travel[$k]->totext)) {
+                $to = $travel[$k]->totext;
+            } else {
+                $to = "Not set";
+            }
+            if (isset($travel[$k]->date)) {
+                $date = $travel[$k]->date;
+            } else {
+                $date = "Not set";
+            }
+
+            $productName .= $from . ' to ' . $to . ' ' . $date . ' , ';
+        }
+
+        return $productName;
+    }
+    
+    public function makeResponseDirectProcess($copData, $bookingID, $callback, $amt, $mrn, $copreftoken, $TK, $TV) {
+
+        $d = '<root>' . $copData . '</root>';
+        log_message('info','makeResponseDirectProcess');
+        log_message('info',$d);
+        $xml = simplexml_load_string($d);
+        $json = json_encode($xml);
+        $array = json_decode($json, TRUE);
+        log_message('info','boss array ph');
+        log_message($array);
+
+        $array = $array['res'];
+
+        $response_txn_id = "NA";
+        $pgErrorDetail = "";
+        $pgErrorMsg = "";
+        $status = "50000";
+        $amountF="";
+        ///dd($array['error_msg']);
+        $resProduce = array();
+        if (isset($array['txn_amt'])) {
+            $resProduce['amt'] = $array['txn_amt'];
+            $amount2 = $array['txn_amt'];
+            $amountF = $array['txn_amt'];
+        }
+        if (isset($array['auth_code'])) {
+            $resProduce['auth_code'] = $array['auth_code'];
+        }
+        if (isset($array['bank_ref_id'])) {
+            $resProduce['bank_ref_id'] = $array['bank_ref_id'];
+        }
+        if (isset($array['acc_no'])) {
+            $resProduce['acc_no'] = $array['acc_no'];
+            $card = $array['acc_no'];
+        }
+        if (isset($array['txn_status'])) {
+           // $resProduce['txn_status'] = $array['txn_status'];
+            if($array['txn_status']=="REJECTED"){
+                $status = "50000";
+            }
+            if($array['txn_status']=="ACCEPTED"){
+                $status = "50020";
+            }
+            
+        }else{
+            $status = "50000";
+        }
+        if (isset($array['ipg_txn_id'])) {
+            $resProduce['ipg_txn_id'] = $array['ipg_txn_id'];
+            $response_txn_id = $array['ipg_txn_id'];
+            //$status = "50020"; //REJECTED
+        }
+        if (isset($array['error_msg'])) {
+            $resProduce['error_msg'] = $array['error_msg'];
+            $pgErrorDetail = $array['error_msg'];
+        }
+        if (isset($array['error_code'])) {
+            $resProduce['error_code'] = $array['error_code'];
+            $pgErrorMsg = $array['error_code'];
+            $status = "50000";
+        }
+
+
+        $SequaMerchantDetailedResponse = array(
+            'responseURL' => $callback,
+            'amt' => $amountF,
+            'amount' => $amountF,
+            'mrn' => $mrn,
+            'merchantReferenceNo' => $mrn,
+            'mit' => "COT",
+            'spTxn' => "",
+            'ipgTxn' => $response_txn_id,
+            'oid' => $bookingID,
+            'mid' => "NA",
+            'status' => $status,
+            'has' => " ",
+            'pgErrorDetail' => $pgErrorDetail,
+            'pgErrorMsg' => $pgErrorMsg,
+            'uid' => " ",
+            '__token_key' => $TK,
+            '__token_value' => $TV,
+            'token' => $copreftoken
+        );
+
+        $res = array(
+            'sham' => "NA",
+            'thank_you_param' => $SequaMerchantDetailedResponse,
+            'options' => "NA",
+            'token' => "NA",
+            'status' => 1,
+            'error_code' => "NA",
+            'msg' => "NA",
+            'redirect_to' => $callback
+        );
+
+        $token = $this->getTokenByOrderID($bookingID);
+        $methodStatus = $this->makePaymentSP($bookingID, $token['tk_key'], $amt, "COT","COT", "COP", $mrn, $status, $pgErrorDetail, $pgErrorMsg);
+        if ($status == '50020') {
+            $client = new clientAPI;
+            $client->informIBE($bookingID);
+            log_message('info','updated inform IBE '.$bookingID);
+        }
+
+        return $res;
+    }
 }

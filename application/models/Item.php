@@ -43,5 +43,12 @@ Class Item extends CI_Model{
     {
         $this->db->update('ph_items', $this, array('itm_id' => $this->itm_id));
     }
+    
+    function get_no_of_pax($tk_key){
+
+        $quantity = $this->db->query("(SELECT SUM(qty) FROM ph_items WHERE tk_key = '$tk_key' and itm_code='FL')", FALSE);
+
+        return ($quantity->result_array());
+    }
 
 }
